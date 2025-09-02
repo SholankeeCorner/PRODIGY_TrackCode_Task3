@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SVM Classifier</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.5.1/dist/chart.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1a202c;
+            color: #e2e8f0;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+
+    <div class="bg-gray-800 p-8 rounded-2xl shadow-lg w-full max-w-4xl">
+        <h1 class="text-4xl font-bold text-center mb-2 text-white">SVM Classifier</h1>
+        <p class="text-center text-gray-400 mb-8">Visualizing a Support Vector Machine for classification.</p>
+        
+        <div class="p-4 bg-gray-700 rounded-xl">
+            <canvas id="svmChart"></canvas>
+        </div>
+
+        <div class="mt-8 text-center">
+            <button id="trainBtn" class="bg-blue-600 text-white font-bold py-3 px-6 rounded-lg hover:bg-blue-700 transition-all duration-300 transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 focus:ring-offset-gray-800">
+                Train SVM
+            </button>
+            <p id="status" class="mt-4 text-gray-400">Press 'Train SVM' to see the model in action.</p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+
+            // --- DATA GENERATION ---
+            // Generates a sample dataset for 'cats' and 'dogs' with two features
+            function createSampleDataset() {
+                const dataset = [];
+                // Add 'dogs' data points (class 1)
+                for (let i = 0; i < 50; i++) {
+                    const feature1 = Math.random() * 2 + 1;
+                    const feature2 = Math.random() * 2 + 1;
+                    dataset.push({ features: [feature1, feature2], label: 1 });
+                }
+                // Add 'cats' data points (class -1)
+                for (let i = 0; i < 50; i++) {
+                    const feature1 = Math.random() * 2 + 3;
+                    const feature2 = Math.random() * 2 + 3;
+                    dataset.push({ features: [feature1, feature2], label: -1 });
+                }
+                return dataset;
+            }
+
+            // --- SVM IMPLEMENTATION (Simplified) ---
+            class SVM {
+                constructor(learning_rate = 0.01, lambda_param = 0.01, n_iters = 1000) {
+                    this.lr = learning_rate;
+                    this.lambda = lambda_param;
+                    this.n_iters = n_iters;
+                    this.weights = null;
+                    this.bias = null;
+                }
+
+                fit(X, y) {
+                    // Initialize weights and bias to zeros
+                    this.weights = Array(X[0].length).fill(0);
+                    this.bias = 0;
+
+                    for (let i = 0; i < this.n_iters; i++) {
+                        for (let j = 0; j < X.length; j++) {
+                            const condition = y[j] * (this.dot(X[j], this.weights) - this.bias) >= 1;
+                            
+                            // Update weights and bias
+                            if (condition) {
+                                for (let k = 0; k < this.weights.length; k++) {
+                                    this.weights[k] -= this.lr * (2 * this.lambda * this.weights[k]);
+                                }
+                            } else {
+                                for (let k = 0; k < this.weights.length; k++) {
+                                    this.weights[k] -= this.lr * (2 * this.lambda * this.weights[k] - X[j][k] * y[j]);
+                                }
+                                this.bias -= this.lr * y[j];
+                            }
+                        }
+                    }
+                }
+
+                predict(X_new) {
+                    const prediction = this.dot(X_new, this.weights) - this.bias;
+                    return Math.sign(prediction);
+                }
+
+                dot(a, b) {
+                    return a.reduce((sum, val, i) => sum + val * b[i], 0);
+                }
+            }
+            
+            // --- VISUALIZATION LOGIC ---
+            function visualize(data, svmModel) {
+                const ctx = document.getElementById('svmChart').getContext('2d');
+                
+                const catPoints = data.filter(d => d.label === -1);
+                const dogPoints = data.filter(d => d.label === 1);
+                
+                // Get the decision boundary line
+                const weights = svmModel.weights;
+                const bias = svmModel.bias;
+                const minX = 0;
+                const maxX = 5;
+                const linePoints = [];
+
+                if (weights[1] !== 0) {
+                    const minY = (-weights[0] * minX - bias) / weights[1];
+                    const maxY = (-weights[0] * maxX - bias) / weights[1];
+                    linePoints.push({x: minX, y: minY});
+                    linePoints.push({x: maxX, y: maxY});
+                }
+
+                new Chart(ctx, {
+                    type: 'scatter',
+                    data: {
+                        datasets: [
+                            {
+                                label: 'Dogs',
+                                data: dogPoints.map(d => ({ x: d.features[0], y: d.features[1] })),
+                                backgroundColor: '#4CAF50', // Green for dogs
+                                pointRadius: 5
+                            },
+                            {
+                                label: 'Cats',
+                                data: catPoints.map(d => ({ x: d.features[0], y: d.features[1] })),
+                                backgroundColor: '#F44336', // Red for cats
+                                pointRadius: 5
+                            },
+                            {
+                                label: 'Decision Boundary',
+                                data: linePoints,
+                                borderColor: '#FFC107', // Yellow line
+                                showLine: true,
+                                fill: false,
+                                pointRadius: 0,
+                                borderWidth: 3
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            x: {
+                                title: { display: true, text: 'Feature 1', color: '#e2e8f0' },
+                                grid: { color: '#4a5568' },
+                                ticks: { color: '#cbd5e1' },
+                                min: 0, max: 5
+                            },
+                            y: {
+                                title: { display: true, text: 'Feature 2', color: '#e2e8f0' },
+                                grid: { color: '#4a5568' },
+                                ticks: { color: '#cbd5e1' },
+                                min: 0, max: 5
+                            }
+                        },
+                        plugins: {
+                            legend: {
+                                labels: {
+                                    color: '#e2e8f0',
+                                    usePointStyle: true,
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+
+            // --- MAIN EXECUTION ---
+            const data = createSampleDataset();
+            const svm = new SVM();
+            const trainBtn = document.getElementById('trainBtn');
+            const statusText = document.getElementById('status');
+            
+            trainBtn.addEventListener('click', () => {
+                statusText.textContent = 'Training the model...';
+                
+                const X = data.map(d => d.features);
+                const y = data.map(d => d.label);
+                
+                svm.fit(X, y);
+                
+                statusText.textContent = 'Training complete. See the results below.';
+                visualize(data, svm);
+            });
+            
+            // Initial visualization (before training)
+            visualize(data, { weights: [0, 0], bias: 0 });
+        });
+    </script>
+
+</body>
+</html>
